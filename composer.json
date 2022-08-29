@@ -1,0 +1,25 @@
+{
+  "name": "lamgor666/goal-php-common",
+  "description": "common libraries for lamgor666/goal-php framework",
+  "keywords": [],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Simon.Ye",
+      "email": "samlinye@163.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Goal\\Common\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=7.3.0",
+    "dflydev/apache-mime-types": "^1.0.1",
+    "ezyang/htmlpurifier": "^4.14.0",
+    "lcobucci/jwt": "^3.4.6",
+    "illuminate/support": "^8.83.23",
+    "doctrine/annotations": "^1.13.3"
+  }
+}
