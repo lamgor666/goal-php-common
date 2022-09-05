@@ -280,10 +280,10 @@ final class ArrayUtils
      * @param string[]|string $rules
      * @return array
      */
-    public static function requestParams(array $arr, $rules): array
+    public static function asHttpInput(array $arr, $rules): array
     {
         if (is_string($rules) && $rules !== '') {
-            $rules = preg_split('/[\x20\t]*,[\x20\t]*/', $rules);
+            $rules = preg_split(Regexp::COMMA_SEP, $rules);
         }
         
         if (!self::isStringArray($rules) || empty($rules)) {
@@ -295,7 +295,7 @@ final class ArrayUtils
         foreach ($rules as $rule) {
             $type = 1;
             $securityMode = SecurityMode::STRIP_TAGS;
-            $defaultValue = null;
+            $defaultValue = '';
 
             if (strpos($rule, '@default:') !== false) {
                 $defaultValue = StringUtils::substringAfterLast($rule, '@');
@@ -306,9 +306,11 @@ final class ArrayUtils
             if (StringUtils::startsWith($rule, 'i:')) {
                 $type = 2;
                 $rule = StringUtils::substringAfter($rule, ':');
-            } else if (StringUtils::startsWith($rule, 'd:')) {
+                $defaultValue = $defaultValue === '' ? PHP_INT_MIN : Cast::toInt($defaultValue);
+            } else if (StringUtils::startsWith($rule, 'f:')) {
                 $type = 3;
                 $rule = StringUtils::substringAfter($rule, ':');
+                $defaultValue = $defaultValue === '' ? PHP_FLOAT_MIN : Cast::toFloat($defaultValue);
             } else if (StringUtils::startsWith($rule, 's:')) {
                 $rule = StringUtils::substringAfter($rule, ':');
             } else if (StringUtils::startsWith($rule, 'a:')) {
@@ -316,77 +318,63 @@ final class ArrayUtils
                 $rule = StringUtils::substringAfter($rule, ':');
             }
 
-            $s1 = '';
-            
-            switch ($type) {
-                case 1:
-                    if (StringUtils::endsWith($rule, ':0')) {
-                        $s1 = StringUtils::substringBeforeLast($rule, ':');
-                        $securityMode = SecurityMode::NONE;
-                    } else if (StringUtils::endsWith($rule, ':1')) {
-                        $s1 = StringUtils::substringBeforeLast($rule, ':');
-                        $securityMode = SecurityMode::HTML_PURIFY;
-                    } else if (StringUtils::endsWith($rule, ':2')) {
-                        $s1 = StringUtils::substringBeforeLast($rule, ':');
-                    } else {
-                        $s1 = $rule;
-                    }
+            $mapKey = $rule;
 
-                    break;
-                case 2:
-                    $s1 = $rule;
-
-                    $defaultValue = is_string($defaultValue) && is_numeric($defaultValue) ?
-                        Cast::toInt($defaultValue) : PHP_INT_MIN;
-
-                    break;
-                case 3:
-                    $s1 = $rule;
-
-                    $defaultValue = is_string($defaultValue) && $defaultValue !== '' ?
-                        bcadd($defaultValue, 0, 2) : '0.00';
-
-                    break;
+            if ($type === 1) {
+                if (StringUtils::endsWith($rule, ':0')) {
+                    $mapKey = StringUtils::substringBeforeLast($mapKey, ':');
+                    $securityMode = SecurityMode::NONE;
+                } else if (StringUtils::endsWith($rule, ':1')) {
+                    $mapKey = StringUtils::substringBeforeLast($mapKey, ':');
+                    $securityMode = SecurityMode::HTML_PURIFY;
+                } else if (StringUtils::endsWith($rule, ':2')) {
+                    $mapKey = StringUtils::substringBeforeLast($mapKey, ':');
+                }
             }
 
-            if (empty($s1)) {
+            if (empty($mapKey)) {
                 continue;
             }
 
-            if (strpos($s1, '#') !== false) {
-                $mapKey = StringUtils::substringBefore($s1, '#');
-                $dstKey = StringUtils::substringAfter($s1, '#');
-            } else {
-                $mapKey = $s1;
-                $dstKey = $s1;
+            $value = isset($arr[$mapKey]) && $arr[$mapKey] !== null ? "$arr[$mapKey]" : '';
+
+            if ($type === 1 && $value !== '' && !is_numeric($value)) {
+                switch ($securityMode) {
+                    case SecurityMode::STRIP_TAGS:
+                        $value = strip_tags($value);
+                        break;
+                    case SecurityMode::HTML_PURIFY:
+                        $value = HtmlPurifier::purify($value);
+                        break;
+                }
             }
 
             switch ($type) {
                 case 2:
-                    $value = Cast::toInt($arr[$mapKey], is_int($defaultValue) ? $defaultValue : PHP_INT_MIN);
+                    $map1[$mapKey] = Cast::toInt($value, $defaultValue);
                     break;
                 case 3:
-                    $value = Cast::toString($arr[$mapKey]);
-
-                    if (StringUtils::isFloat($value)) {
-                        $value = bcadd($value, 0, 2);
-                    } else if (is_string($defaultValue) && StringUtils::isFloat($value)) {
-                        $value = bcadd($defaultValue, 0, 2);
-                    } else {
-                        $value = '0.00';
-                    }
-
+                    $map1[$mapKey] = Cast::toFloat($value, $defaultValue);
                     break;
                 case 4:
-                    $value = json_decode(Cast::toString($arr[$mapKey]), true);
-                    $value = is_array($value) ? $value : [];
+                    if (StringUtils::startsWith($value, '{') && StringUtils::endsWith($value, '}')) {
+                        $value = JsonUtils::mapFrom($value);
+
+                        if (!is_array($value)) {
+                            $value = [];
+                        }
+                    } else if (StringUtils::startsWith($value, '[') && StringUtils::endsWith($value, ']')) {
+                        $value = JsonUtils::arrayFrom($value);
+                    } else {
+                        $value = [];
+                    }
+
+                    $map1[$mapKey] = $value;
                     break;
                 default:
-                    $value = self::getStringWithSecurityMode($arr, $mapKey, $securityMode);
+                    $map1[$mapKey] = $value;
                     break;
             }
-
-            $map1[$dstKey] = $value;
         }
 
         return $map1;
@@ -427,39 +415,5 @@ final class ArrayUtils
         }
 
         return [];
-    }
-
-    private static function getStringWithSecurityMode(
-        array $arr,
-        string $key,
-        int $securityMode = SecurityMode::STRIP_TAGS
-    ): string
-    {
-        $value = $arr[$key];
-
-        if (is_int($value) || is_float($value)) {
-            return "$value";
-        }
-
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-
-        if (!is_string($value)) {
-            return '';
-        }
-
-        if ($value === '') {
-            return $value;
-        }
-
-        switch ($securityMode) {
-            case SecurityMode::HTML_PURIFY:
-                return HtmlPurifier::purify($value);
-            case SecurityMode::STRIP_TAGS:
-                return strip_tags($value);
-            default:
-                return $value;
-        }
     }
 }

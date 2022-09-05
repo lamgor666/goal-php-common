@@ -271,11 +271,11 @@ final class StringUtils
             return false;
         }
 
-        if (!preg_match('/^[1-9][0-9]+$/', $str)) {
+        if (!preg_match('/^1[3589]\d{9}$/', $str)) {
             return false;
         }
 
-        return strlen($str) >= 11;
+        return true;
     }
 
     public static function isEmail(string $str): bool

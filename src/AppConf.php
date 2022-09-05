@@ -2,44 +2,12 @@
 
 namespace Goal\Common;
 
-use Goal\Common\Swoole\Swoole;
 use Goal\Common\Util\ArrayUtils;
 use Goal\Common\Util\StringUtils;
+use Throwable;
 
 final class AppConf
 {
-    /**
-     * @var string
-     */
-    private static $env = 'dev';
-
-    /**
-     * @var array
-     */
-    private static $data = [];
-
-    public static function setEnv(string $env): void
-    {
-        defined('_ENV_') && define('_ENV_', $env);
-        self::$env = $env;
-    }
-
-    public static function getEnv(): string
-    {
-        return self::$env;
-    }
-    
-    public static function setData(array $data): void
-    {
-        if (Swoole::inCoroutineMode(true)) {
-            $key = 'worker' . Swoole::getWorkerId();
-        } else {
-            $key = 'noworker';
-        }
-
-        self::$data[$key] = $data;
-    }
-
     public static function get(string $key)
     {
         if (strpos($key, '.') === false) {
@@ -154,13 +122,16 @@ final class AppConf
 
     private static function getData(): array
     {
-        if (Swoole::inCoroutineMode(true)) {
-            $key = 'worker' . Swoole::getWorkerId();
-        } else {
-            $key = 'noworker';
+        if (!function_exists('getConfData')) {
+            return [];
         }
 
-        $data = self::$data[$key];
-        return is_array($data) ? $data : [];
+        try {
+            $data = getConfData();
+        } catch (Throwable $ex) {
+            $data = null;
+        }
+
+        return is_array($data) && !empty($data) ? $data : [];
     }
 }

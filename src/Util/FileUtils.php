@@ -85,27 +85,63 @@ final class FileUtils
         }
 
         if (StringUtils::startsWith($path, '@base')) {
-            return function_exists('base_path') ? base_path($path) : $path;
+            if (function_exists('base_path')) {
+                $path = str_replace('@base', '', $path);
+                $path = ltrim($path, '/');
+                return base_path($path);
+            }
+
+            return $path;
         }
 
         if (StringUtils::startsWith($path, '@storage')) {
-            return function_exists('storage_path') ? storage_path($path) : $path;
+            if (function_exists('storage_path')) {
+                $path = str_replace('@storage', '', $path);
+                $path = ltrim($path, '/');
+                return storage_path($path);
+            }
+
+            return $path;
         }
 
         if (StringUtils::startsWith($path, '@data')) {
-            return function_exists('data_path') ? data_path($path) : $path;
+            if (function_exists('data_path')) {
+                $path = str_replace('@data', '', $path);
+                $path = ltrim($path, '/');
+                return data_path($path);
+            }
+
+            return $path;
         }
 
         if (StringUtils::startsWith($path, '@cache')) {
-            return function_exists('cache_path') ? cache_path($path) : $path;
+            if (function_exists('cache_path')) {
+                $path = str_replace('@cache', '', $path);
+                $path = ltrim($path, '/');
+                return cache_path($path);
+            }
+
+            return $path;
         }
 
         if (StringUtils::startsWith($path, '@logs')) {
-            return function_exists('logs_path') ? logs_path($path) : $path;
+            if (function_exists('logs_path')) {
+                $path = str_replace('@logs', '', $path);
+                $path = ltrim($path, '/');
+                return logs_path($path);
+            }
+
+            return $path;
         }
 
         if (StringUtils::startsWith($path, '@resources')) {
-            return function_exists('resources_path') ? resources_path($path) : $path;
+            if (function_exists('resources_path')) {
+                $path = str_replace('@resources', '', $path);
+                $path = ltrim($path, '/');
+                return resources_path($path);
+            }
+
+            return $path;
         }
 
         if (StringUtils::startsWith($path, '@')) {
